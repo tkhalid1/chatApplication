@@ -409,8 +409,9 @@ function showchatPanel(data) {
 
 bind('.chatPanel .messageBox .sendButton', function() {
     var messageText = $('.chatContainer .chatPanel .messageBox .textBox .textArea').val();
+    user.id = 'this is the user id from frond end';
 
-    socket.emit('chatting', messageText, user, receiverId);
+    socket.emit('chatting', messageText, user, receiverId,'userID');
     $('.chatContainer .chatPanel .messageBox .textBox .textArea').val('');
 });
 
