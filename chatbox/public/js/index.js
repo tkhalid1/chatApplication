@@ -1,6 +1,8 @@
 //render function for Name start here //
 
-var socket = io();
+var socket = io({
+    query: {token: "1234567"}
+  });
 var ownId;
 var receiverId;
 var recieverName;
