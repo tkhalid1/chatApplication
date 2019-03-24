@@ -2,7 +2,7 @@ var express = require('express');
 const moment = require('moment');
 const jwt = require("jsonwebtoken");
 const AWS = require('aws-sdk');
-const mongo = require('mongodb').MongoClient;
+const mongoose = require('mongoose');
 var app = express();
 var http = require('http').Server(app);
 var path = require("path");
@@ -15,17 +15,24 @@ app.use(express.static(path.join(__dirname, "public")));
 app.get('/', function(req, res) {
     res.sendFile(__dirname + '/public/view/chatPage.html');
 });
-mongo.connect('mongodb://34.200.211.15:28028/gnie', function(err, db){
-    if(err){
-        throw err;
-    }
+let connection =  null
 
-    console.log('MongoDB connected...');
+if (connection === null){
+  mongoose.connect('mongodb://ec2-34-200-211-15.compute-1.amazonaws.com:28028/gnie',
+  {
+    useNewUrlParser: true,
+  }
+  ).then(con => {
+    connection = con
+  })
+}
+const {Chat} = require('./db')(mongoose)
+const ObjectId = mongoose.Types.ObjectId
 
     io.use(function(socket, next){
         if (socket.handshake.query && socket.handshake.query.token){
             console.log("this is the socket",socket.handshake.query);
-            let token  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI1YmI4ZjFmMTkyNzk4N2M3NDg3M2MxYTQiLCJyb2xlIjoiYXBwX3VzZXIiLCJpYXQiOjE1NTEwMTY5NzYsImV4cCI6MTU1MTYyMTc3Nn0.h33NJiLHr4BvneVy9Uc0TLgZLkzdxrblyQs0jBvmHXM';
+            let token  = socket.handshake.query.token;
           jwt.verify(token, 'DED7AC2362964B77869F67F5CB357',{ algorithms: ['HS256'] }, function(err, decoded) {
             if(err) return next(new Error('Authentication error'));
             socket.decoded = decoded;
@@ -36,7 +43,7 @@ mongo.connect('mongodb://34.200.211.15:28028/gnie', function(err, db){
         }    
       })
 .on('connection', function(socket) {
-    let chat = db.collection('chats');
+    
 
     //   console.log('a user connected');
 
@@ -79,7 +86,14 @@ mongo.connect('mongodb://34.200.211.15:28028/gnie', function(err, db){
 
         socket.to(receiver).emit('reciverPeer', message, socket.id, receiver);
         socket.emit('senderPeer', message, socket.id, receiver);
-        chat.insert({to: userID,from:sender.id, message: message,seen:false,timestamp:now.format()});
+        let chat = new Chat();
+        let date = new Date();
+        chat.to = ObjectId(userID);
+        chat.from = ObjectId(sender.id);
+        chat.message = message;
+        chat.seen = false,
+        chat.timestamp = date;
+        chat.save();
         let wishNotificationInfo = {from: sender.id,to: userID, message: message, action: "chat"};
         console.log("the wish info object is" + JSON.stringify(wishNotificationInfo));
         let params = {
@@ -88,7 +102,7 @@ mongo.connect('mongodb://34.200.211.15:28028/gnie', function(err, db){
             LogType: 'Tail',
             Payload: JSON.stringify(wishNotificationInfo)
         };
-       await new AWS.Lambda().invoke(params).promise();
+        new AWS.Lambda().invoke(params).promise();
 
 
 
@@ -98,5 +112,4 @@ mongo.connect('mongodb://34.200.211.15:28028/gnie', function(err, db){
 
 http.listen(4000, function() {
     console.log('listening on *:4000');
-});
 });
